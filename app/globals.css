@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Mona+Serif&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap');
+
+:root {
+  --background-dark: #0A0B0F;
+  --background-card: #13141B;
+  --background-element: #1A1B23;
+  --accent-purple: #8A2BE2;
+  --accent-blue: #00BFFF;
+  --accent-green: #00FA9A;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0AEC0;
+  --border-color: rgba(255, 255, 255, 0.1);
+
+  /* Tailwind CSS Variables for Dark Mode */
+  --background: 222 47% 11%;       /* Dark background */
+  --foreground: 210 40% 98%;        /* Light text */
+  --card: 222 47% 11%;              /* Dark card background */
+  --card-foreground: 210 40% 98%;   /* Card text */
+  --popover: 222 47% 11%;           /* Dark popover background */
+  --popover-foreground: 210 40% 98%; /* Popover text */
+  --primary: 263 70% 50%;           /* Primary accent color */
+  --primary-foreground: 210 40% 98%; /* Primary text */
+  --secondary: 222 47% 16%;         /* Secondary background */
+  --secondary-foreground: 210 40% 98%; /* Secondary text */
+  --muted: 223 47% 20%;             /* Muted background */
+  --muted-foreground: 215 20% 65%;  /* Muted text */
+  --accent: 263 70% 50%;            /* Accent color */
+  --accent-foreground: 210 40% 98%; /* Accent text */
+  --destructive: 0 84% 60%;         /* Destructive color */
+  --destructive-foreground: 210 40% 98%; /* Destructive text */
+  --border: 222 47% 20%;            /* Border color */
+  --input: 222 47% 20%;             /* Input background */
+  --ring: 263 70% 50%;              /* Focus ring color */
+}
+@keyframes scroll-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.animate-scroll-right {
+  animation: scroll-right 30s linear infinite;
+}
+
+
+h2 h3 h4{
+  font-family: 'Mona Serif', serif !important;
+}
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  /* Add more dark mode specific overrides if needed */
+}
+*{
+  font-family:  Georgia, 'Times New Roman', Times, serif,'Oswald', sans-serif ,'Mona Serif' ;
+}
+body {
+  @apply bg-background text-foreground;
+  font-family: sans-serif;
+  background-image: url('/sm1.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--secondary));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent));
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  :root {
+    --color-1: 0 100% 63%;
+    --color-2: 270 100% 63%;
+    --color-3: 210 100% 63%;
+    --color-4: 195 100% 63%;
+    --color-5: 90 100% 63%;
+  }
+  .dark {
+    --color-1: 0 100% 63%;
+    --color-2: 270 100% 63%;
+    --color-3: 210 100% 63%;
+    --color-4: 195 100% 63%;
+    --color-5: 90 100% 63%;
+  }
+}
