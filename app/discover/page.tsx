@@ -29,6 +29,8 @@ import Footer from "@/components/NewsFooter/Footer";
 import RippleButton from "@/components/ui/ripple-button";
 import SearchBox from "@/components/SeachBox";
 import SubscribeButton from "@/components/SubscribeButton";
+import FlashAlertsModal from "@/components/FlashAlertsModal";
+import SubscribeModal from "@/components/SubscribeModal";
 
 // Inters
 interface NewsArticle {
@@ -209,52 +211,30 @@ export default function DiscoverView() {
 
   const [coinNews, setCoinNews] = useState([]);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // State to manage login status
   const router = useRouter();
 
-  const handleLogin = () => {
-    router.push("/login");
-    // Implement your login logic here
-    setIsLoggedIn(true); // Set to true when user logs in
-  };
-  const handleSignup = () => {
-    router.push("/signup");
-  };
-
-  const handleLogout = () => {
-    // Implement your logout logic here
-    setIsLoggedIn(false); // Set to false when user logs out
-  };
   const fetchGNews = async (query: string = "cryptocurrency") => {
     try {
       setGNewsLoading(true);
-      const API_KEY = process.env.NEXT_PUBLIC_GNEWS_API_KEY;
-      if (!API_KEY) {
-        throw new Error("GNews API key is not configured");
-      }
-
-      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
-        query
-      )}&lang=en&country=us&max=9&apikey=${API_KEY}`;
-      const response = await fetch(url);
+      const response = await fetch(`/api/news?query=${encodeURIComponent(query)}`);
 
       if (!response.ok) {
         console.error(
-          `GNews API request failed with status: ${response.status}`
+          `News API request failed with status: ${response.status}`
         );
-        setGNewsError("Failed to fetch GNews. Please try again.");
+        setGNewsError("Failed to fetch news. Please try again.");
         return;
       }
 
       const data = await response.json();
-      const gNewsArticles = data.articles.map((article: any) => ({
+      const gNewsArticles = (data.articles || []).map((article: any) => ({
         title: article.title,
-        description: article.description,
+        description: article.description || "",
         url: article.url,
-        urlToImage: article.image || DEFAULT_FALLBACK_IMAGE,
+        urlToImage: article.urlToImage || article.image || DEFAULT_FALLBACK_IMAGE,
         source: {
-          name: article.source.name || "GNews",
-          icon: undefined,
+          name: article.source?.name || "News",
+          icon: article.source?.icon || undefined,
         },
         publishedAt: article.publishedAt || new Date().toISOString(),
       }));
@@ -262,7 +242,7 @@ export default function DiscoverView() {
       setGNews(gNewsArticles);
       setGNewsError(null);
     } catch (err) {
-      console.error("Detailed GNews Error:", err);
+      console.error("Detailed News Error:", err);
       setGNewsError(
         err instanceof Error ? err.message : "An unknown error occurred"
       );
@@ -386,14 +366,10 @@ export default function DiscoverView() {
     isOpen,
     setIsOpen,
     handleNavbarSearch,
-    
-    handleSignup,
   }: {
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
     handleNavbarSearch: (query: string) => void;
-   
-    handleSignup: () => void;
   }) => (
     <div className={`fixed inset-0 z-50 ${isOpen ? "block" : "hidden"}`}>
       <div
@@ -433,28 +409,7 @@ export default function DiscoverView() {
           />
         </div>
 
-        <div className="mt-6 space-y-4  flex flex-row gap-4 align-middle items-center">
-          <div className="flex flex-row items-center border border-white rounded-xl p-1 gap-0 align-middle">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="currentColor"
-            >
-              <path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13Z"></path>
-            </svg>{" "}
-            <Button
-              onClick={() => {
-                handleLogin()
-                setIsOpen(false);
-              }}
-              className="w-auto bg-transparent p-2 rounded-xl font-sans  text-white"
-            >
-              Sign In
-            </Button>
-          </div>
-
+        <div className="mt-6 space-y-4 flex flex-row gap-4 align-middle items-center">
           <SubscribeButton />
         </div>
       </div>
@@ -717,7 +672,7 @@ export default function DiscoverView() {
     fetchYouTubeVideos(defaultQuery);
     fetchRedditNews(null, defaultQuery);
     fetchRSSFeeds();
-  }, []);
+  }, [fetchYouTubeVideos]);
 
   function getImageSrc(url: string | undefined) {
     if (!url || url === "self" || url === "default") {
@@ -769,39 +724,14 @@ export default function DiscoverView() {
 
             {/* Right side items */}
             <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative text-gray-300 hover:text-purple-500"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-500 text-[10px] font-medium text-white flex items-center justify-center">
-                  3
-                </span>
-              </Button>
+              {/* Interactive Flash Alerts Modal */}
+              <FlashAlertsModal />
 
-              {/* Auth buttons */}
+              {/* Desktop Subscribe button */}
               <div className="hidden md:flex items-center space-x-2">
-                {isLoggedIn ? (
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src="https://github.com/shadcn.png"
-                      alt="Profile"
-                    />
-                    <AvatarFallback>CN</AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={handleLogin}
-                      variant="ghost"
-                      className="text-gray-300 hover:text-purple-500"
-                    >
-                      Sign In
-                    </Button>
-                    <InteractiveHoverButton />
-                  </div>
-                )}
+                <SubscribeModal>
+                  <InteractiveHoverButton />
+                </SubscribeModal>
               </div>
 
               <Button
@@ -816,52 +746,6 @@ export default function DiscoverView() {
         </div>
 
         {/* Mobile menu */}
-        {/* {mobileMenuOpen && (
-          <div className="fixed bg-black inset-0 z-50  backdrop-blur-xl md:hidden">
-            <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-gray-900 shadow-xl">
-              <div className="flex items-center justify-between p-4 border-b border-gray-800">
-                <h2 className="text-lg font-semibold text-gray-100">Menu</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <X className="h-6 w-6" />
-                </Button>
-              </div>
-              <div className="px-4 py-6 space-y-6">
-                {["Crypto News", "NFTs", "Market Updates", "Web3", "DeFi"].map(
-                  (item) => (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        handleNavbarSearch(item);
-                        setMobileMenuOpen(false);
-                      }}
-                      className="block  w-full text-left px-4 py-2 text-gray-300 hover:text-purple-500 hover:bg-gray-800 rounded-lg transition-colors"
-                    >
-                      {item}
-                    </button>
-                  )
-                )}
-                {!isLoggedIn && (
-                  <div className="pt-6 border-t border-gray-800">
-                    <Button
-                      onClick={handleLogin}
-                      className="w-full mb-3"
-                      variant="outline"
-                    >
-                      Sign In
-                    </Button>
-                    <Button onClick={handleSignup} className="w-full">
-                      Sign Up
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )} */}
       </nav>
       <div className="px-4 py-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -984,8 +868,8 @@ export default function DiscoverView() {
       <MobileMenu
         isOpen={mobileMenuOpen}
         setIsOpen={setMobileMenuOpen}
-        handleNavbarSearch={handleNavbarSearch} 
-         handleSignup={handleSignup}     />
+        handleNavbarSearch={handleNavbarSearch}
+      />
 
       <style jsx>{`
         .scrollbar-hide {

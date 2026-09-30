@@ -30,6 +30,8 @@ import SubscribeButton from "@/components/SubscribeButton";
 import SearchBox from "@/components/SeachBox";
 import CryptoPrice from "@/components/CryptoTicker";
 import CryptoTicker from "@/components/CryptoTicker";
+import FlashAlertsModal from "@/components/FlashAlertsModal";
+import SubscribeModal from "@/components/SubscribeModal";
 
 // Inters
 interface NewsArticle {
@@ -193,7 +195,6 @@ export default function NewsPage() {
 
   const [coinNews, setCoinNews] = useState([]);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // State to manage login status
   const router = useRouter();
 
   function getImageSrc(url: string | undefined) {
@@ -203,49 +204,28 @@ export default function NewsPage() {
     return url;
   }
 
-  const handleLogin = () => {
-    router.push("/login");
-    // Implement your login logic here
-    setIsLoggedIn(true); // Set to true when user logs in
-  };
-  const handleSignup = () => {
-    router.push("/signup");
-  };
-
-  const handleLogout = () => {
-    // Implement your logout logic here
-    setIsLoggedIn(false); // Set to false when user logs out
-  };
   const fetchGNews = async (query: string = "cryptocurrency") => {
     try {
       setGNewsLoading(true);
-      const API_KEY = process.env.NEXT_PUBLIC_GNEWS_API_KEY;
-      if (!API_KEY) {
-        throw new Error("GNews API key is not configured");
-      }
-
-      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(
-        query
-      )}&lang=en&country=us&max=9&apikey=${API_KEY}`;
-      const response = await fetch(url);
+      const response = await fetch(`/api/news?query=${encodeURIComponent(query)}`);
 
       if (!response.ok) {
         console.error(
-          `GNews API request failed with status: ${response.status}`
+          `News API request failed with status: ${response.status}`
         );
-        setGNewsError("Failed to fetch GNews. Please try again.");
+        setGNewsError("Failed to fetch news. Please try again.");
         return;
       }
 
       const data = await response.json();
-      const gNewsArticles = data.articles.map((article: any) => ({
+      const gNewsArticles = (data.articles || []).map((article: any) => ({
         title: article.title,
-        description: article.description,
+        description: article.description || "",
         url: article.url,
-        urlToImage: article.image || DEFAULT_FALLBACK_IMAGE,
+        urlToImage: article.urlToImage || article.image || DEFAULT_FALLBACK_IMAGE,
         source: {
-          name: article.source.name || "GNews",
-          icon: undefined,
+          name: article.source?.name || "News",
+          icon: article.source?.icon || undefined,
         },
         publishedAt: article.publishedAt || new Date().toISOString(),
       }));
@@ -253,7 +233,7 @@ export default function NewsPage() {
       setGNews(gNewsArticles);
       setGNewsError(null);
     } catch (err) {
-      console.error("Detailed GNews Error:", err);
+      console.error("Detailed News Error:", err);
       setGNewsError(
         err instanceof Error ? err.message : "An unknown error occurred"
       );
@@ -273,37 +253,29 @@ export default function NewsPage() {
     process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || "YOUR_YOUTUBE_API_KEY";
 
   const fetchRedditNews = async (
-    afterToken: string | null = null,
+    _afterToken: string | null = null,
     query: string = "cryptocurrency"
   ) => {
     try {
       const redditResponse = await fetch(
-        `/api/reddit?query=${encodeURIComponent(query)}${
-          afterToken ? `&after=${encodeURIComponent(afterToken)}` : ""
-        }`
+        `/api/reddit?query=${encodeURIComponent(query)}`
       );
       if (!redditResponse.ok) {
         setRedditNews([]);
         return;
       }
       const redditData = await redditResponse.json();
-      if (!redditData?.data?.children || !Array.isArray(redditData.data.children)) {
-        setRedditNews([]);
+
+      // New RSS-based API returns { status, articles[] } directly
+      if (redditData?.articles && Array.isArray(redditData.articles)) {
+        setRedditNews(redditData.articles);
+        // RSS feeds don't support Reddit cursor pagination — clear tokens
+        setNextRedditPageToken(null);
+        setPrevRedditPageToken(null);
         return;
       }
-      const redditArticles = redditData.data.children.map((child: any) => ({
-        title: child.data.title,
-        url: `https://www.reddit.com${child.data.permalink}`,
-        urlToImage:
-          child.data.thumbnail && child.data.thumbnail.startsWith("http")
-            ? child.data.thumbnail
-            : DEFAULT_FALLBACK_IMAGE,
-        source: { name: "Reddit" },
-        publishedAt: new Date(child.data.created_utc * 1000).toISOString(),
-      }));
-      setRedditNews(redditArticles);
-      setNextRedditPageToken(redditData.data.after || null);
-      setPrevRedditPageToken(redditData.data.before || null);
+
+      setRedditNews([]);
     } catch (err) {
       console.error("Reddit news fetch error:", err);
       setRedditNews([]);
@@ -569,7 +541,7 @@ export default function NewsPage() {
     fetchYouTubeVideos(defaultQuery);
     fetchRedditNews(null, defaultQuery);
     fetchRSSFeeds();
-  }, []);
+  }, [fetchYouTubeVideos]);
 
   const LoadingSkeleton = () => (
     <div className="space-y-8 animate-pulse">
@@ -592,14 +564,10 @@ export default function NewsPage() {
     isOpen,
     setIsOpen,
     handleNavbarSearch,
-    handleLogin,
-    handleSignup,
   }: {
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
     handleNavbarSearch: (query: string) => void;
-    handleLogin: () => void;
-    handleSignup: () => void;
   }) => (
     <div className={`fixed inset-0 z-50 ${isOpen ? "block" : "hidden"}`}>
       <div
@@ -639,28 +607,7 @@ export default function NewsPage() {
           />
         </div>
 
-        <div className="mt-6 space-y-4  flex flex-row gap-4 align-middle items-center">
-          <div className="flex flex-row items-center border border-white rounded-xl p-1 gap-0 align-middle">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="currentColor"
-            >
-              <path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13Z"></path>
-            </svg>{" "}
-            <Button
-              onClick={() => {
-                handleLogin();
-                setIsOpen(false);
-              }}
-              className="w-auto bg-transparent p-2 rounded-xl font-sans  text-white"
-            >
-              Sign In
-            </Button>
-          </div>
-
+        <div className="mt-6 space-y-4 flex flex-row gap-4 align-middle items-center">
           <SubscribeButton />
         </div>
       </div>
@@ -779,38 +726,14 @@ export default function NewsPage() {
                 </svg>{" "} */}
               </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative text-gray-300 hover:text-purple-500"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-purple-500 text-[10px] font-medium text-white flex items-center justify-center">
-                  3
-                </span>
-              </Button>
+              {/* Interactive Flash Alerts Modal */}
+              <FlashAlertsModal />
 
-              {/* Auth buttons - desktop */}
+              {/* Desktop Subscribe button */}
               <div className="hidden md:flex items-center space-x-2">
-                {isLoggedIn ? (
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src="https://github.com/shadcn.png"
-                      alt="Profile"
-                    />
-                    <AvatarFallback>CN</AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={handleLogin}
-                      className="text-white font-[20px] hover:text-purple-400 font-sans !bg-transparent"
-                    >
-                      Sign In
-                    </Button>
-                    <InteractiveHoverButton />
-                  </div>
-                )}
+                <SubscribeModal>
+                  <InteractiveHoverButton />
+                </SubscribeModal>
               </div>
 
               {/* Mobile menu button */}
@@ -887,18 +810,11 @@ export default function NewsPage() {
                     </button>
                   )
                 )}
-                {!isLoggedIn && (
-                  <div className="pt-6 border-gray-800">
-                    <Button
-                      onClick={handleLogin}
-                      className="w-full mb-3"
-                      variant="outline"
-                    >
-                      Sign In
-                    </Button>
-                    <InteractiveHoverButton />
-                  </div>
-                )}
+                <div className="pt-6 border-t border-gray-800">
+                  <SubscribeModal className="w-full">
+                    <InteractiveHoverButton className="w-full" />
+                  </SubscribeModal>
+                </div>
               </div>
             </div>
           </div>
@@ -1146,11 +1062,15 @@ export default function NewsPage() {
                               className="bg-[#0A0B0F]/60 backdrop-blur-xl border-white/10 rounded-xl hover:rounded-2xl hover:border-[#8B5CF6]/50  border hover:rounded-2xl hover:border-blue-500/50 rounded-xl transition-all duration-300"
                             >
                               <div className="relative rounded-2xl hover:rounded-2xl hover:border-purple-500">
-                                <img
-                                  src={video.snippet.thumbnails.medium.url}
-                                  alt={video.snippet.title}
-                                  className="w-full h-48 rounded-t-2xl object-cover"
-                                />
+                                <div className="relative w-full h-48 rounded-t-2xl overflow-hidden">
+                                  <Image
+                                    src={video.snippet.thumbnails.medium.url}
+                                    alt={video.snippet.title}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </div>
                                 <div className="p-4 space-y-2">
                                   <h3 className="text-md font-medium line-clamp-2">
                                     {video.snippet.title}
@@ -1596,8 +1516,6 @@ export default function NewsPage() {
         isOpen={mobileMenuOpen}
         setIsOpen={setMobileMenuOpen}
         handleNavbarSearch={handleNavbarSearch}
-        handleLogin={handleLogin}
-        handleSignup={handleSignup}
       />
       <ScrollToTopButton />
       <style jsx>{`

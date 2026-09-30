@@ -1,46 +1,160 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * Reddit Community Feed — Direct RSS/Atom parsing (no API key required)
+ *
+ * Reddit's JSON API returns 403 for anonymous requests.
+ * Reddit's public RSS/Atom feeds return 200 with a proper User-Agent.
+ *
+ * Feed format: Atom XML with media:thumbnail extensions
+ * Parsed with lightweight regex — no XML library needed.
+ */
+
+const REDDIT_USER_AGENT =
+  'CryoW3Times:news-aggregator:v1.0 (by /u/cryow3times_bot)';
+
+const DEFAULT_FALLBACK_IMAGE =
+  'https://cdn-icons-png.flaticon.com/512/4588/4588164.png';
+
+const SUBREDDIT_FEEDS: { sub: string; url: string }[] = [
+  { sub: 'CryptoCurrency', url: 'https://www.reddit.com/r/CryptoCurrency/hot/.rss?limit=10' },
+  { sub: 'Bitcoin',        url: 'https://www.reddit.com/r/Bitcoin/hot/.rss?limit=6' },
+  { sub: 'ethereum',       url: 'https://www.reddit.com/r/ethereum/hot/.rss?limit=6' },
+];
+
+// Subreddits relevant to specific search terms
+const QUERY_SUBREDDITS: Record<string, string[]> = {
+  bitcoin: ['Bitcoin'],
+  btc:     ['Bitcoin'],
+  ethereum: ['ethereum'],
+  eth:     ['ethereum'],
+  default: ['CryptoCurrency', 'Bitcoin', 'ethereum'],
+};
+
+interface RedditArticle {
+  title: string;
+  description: string;
+  url: string;
+  urlToImage: string;
+  source: { name: string };
+  publishedAt: string;
+}
+
+// ─── XML helpers ─────────────────────────────────────────────────────────────
+
+function extractText(xml: string, tag: string): string | null {
+  const re = new RegExp(
+    `<${tag}(?:[^>]*)>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`,
+    'i'
+  );
+  return xml.match(re)?.[1]?.trim() ?? null;
+}
+
+function extractAttr(xml: string, tag: string, attr: string): string | null {
+  const re = new RegExp(`<${tag}[^>]*\\s${attr}="([^"]+)"`, 'i');
+  return xml.match(re)?.[1] ?? null;
+}
+
+function parseAtomEntries(xml: string, subreddit: string): RedditArticle[] {
+  const rawEntries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) ?? [];
+
+  return rawEntries.flatMap((entry) => {
+    const title = extractText(entry, 'title');
+    const link =
+      extractAttr(entry, 'link', 'href') ??
+      extractText(entry, 'link') ??
+      null;
+    const published =
+      extractText(entry, 'updated') ??
+      extractText(entry, 'published') ??
+      new Date().toISOString();
+
+    const imgUrl =
+      extractAttr(entry, 'media:thumbnail', 'url') ??
+      extractAttr(entry, 'media:content', 'url') ??
+      null;
+
+    // Skip stickied/removed posts (typically link to /about/rules etc.)
+    if (!title || !link || link.includes('/about/')) return [];
+
+    // Strip HTML from description/content
+    const rawContent = extractText(entry, 'content') ?? '';
+    const description = rawContent
+      .replace(/<[^>]*>?/gm, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200);
+
+    return [
+      {
+        title,
+        description,
+        url: link,
+        urlToImage: imgUrl ?? DEFAULT_FALLBACK_IMAGE,
+        source: { name: `r/${subreddit}` },
+        publishedAt: published,
+      },
+    ];
+  });
+}
+
+// ─── Route handler ────────────────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('query') || 'cryptocurrency';
-  const after = searchParams.get('after');
+  const query = (searchParams.get('query') ?? 'cryptocurrency').toLowerCase();
 
-  const headers = {
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CryoW3times/1.0',
-    Accept: 'application/json',
-  };
+  // Select relevant subreddits for the query
+  const activeSubs =
+    QUERY_SUBREDDITS[Object.keys(QUERY_SUBREDDITS).find((k) => query.includes(k)) ?? 'default'];
 
-  try {
-    // Primary attempt: Search endpoint
-    let redditUrl = `https://www.reddit.com/r/CryptoCurrency/search.json?q=${encodeURIComponent(
-      query
-    )}&sort=top&limit=9${after ? `&after=${after}` : ''}`;
+  const feeds = SUBREDDIT_FEEDS.filter(({ sub }) =>
+    activeSubs.includes(sub)
+  );
 
-    let response = await fetch(redditUrl, { headers, next: { revalidate: 120 } });
+  const allArticles: RedditArticle[] = [];
 
-    // Fallback attempt if search fails or returns 403/429: Hot listings endpoint
-    if (!response.ok) {
-      console.warn(`Reddit search returned status ${response.status}, attempting fallback to hot listing...`);
-      redditUrl = `https://www.reddit.com/r/CryptoCurrency/hot.json?limit=9${after ? `&after=${after}` : ''}`;
-      response = await fetch(redditUrl, { headers, next: { revalidate: 120 } });
-    }
+  await Promise.allSettled(
+    feeds.map(async ({ sub, url }) => {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': REDDIT_USER_AGENT,
+            Accept: 'application/rss+xml, application/xml, text/xml, */*',
+          },
+          next: { revalidate: 3600 }, // cache 1 hour in Next.js data cache
+        });
 
-    if (!response.ok) {
-      console.warn(`Reddit API fallback returned status ${response.status}`);
-      return NextResponse.json({
-        data: { children: [], after: null, before: null },
-        message: `Reddit API status ${response.status}`,
-      });
-    }
+        if (!res.ok) {
+          console.warn(`[REDDIT-RSS] r/${sub} returned ${res.status}`);
+          return;
+        }
 
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Reddit API proxy error:', error);
-    return NextResponse.json({
-      data: { children: [], after: null, before: null },
-      message: 'Failed to fetch Reddit data',
-    });
+        const xml = await res.text();
+        const articles = parseAtomEntries(xml, sub);
+        allArticles.push(...articles);
+        console.log(`[REDDIT-RSS] r/${sub}: parsed ${articles.length} posts`);
+      } catch (err) {
+        console.error(`[REDDIT-RSS] r/${sub} error:`, err);
+      }
+    })
+  );
+
+  // Sort by newest first
+  const sorted = allArticles
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    )
+    .slice(0, 18);
+
+  if (sorted.length === 0) {
+    console.warn('[REDDIT-RSS] All feeds returned empty — serving empty response');
   }
+
+  return NextResponse.json({
+    status: 'ok',
+    articles: sorted,
+    totalResults: sorted.length,
+  });
 }
