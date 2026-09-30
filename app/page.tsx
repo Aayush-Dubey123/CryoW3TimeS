@@ -148,6 +148,7 @@ if (typeof window !== "undefined") {
 }
 
 export default function NewsPage() {
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -235,7 +236,6 @@ export default function NewsPage() {
       setGNewsError(
         err instanceof Error ? err.message : "An unknown error occurred"
       );
-      setGNews([]);
     } finally {
       setGNewsLoading(false);
     }
@@ -272,11 +272,8 @@ export default function NewsPage() {
         setPrevRedditPageToken(null);
         return;
       }
-
-      setRedditNews([]);
     } catch (err) {
       console.error("Reddit news fetch error:", err);
-      setRedditNews([]);
     }
   };
 
@@ -429,22 +426,27 @@ export default function NewsPage() {
   //   }
   // };
 
+  const fetchAllNews = useCallback(
+    async (query: string = "cryptocurrency news") => {
+      await Promise.allSettled([
+        fetchGNews(query),
+        fetchYouTubeVideos(query),
+        fetchRedditNews(null, query),
+        fetchRSSFeeds(),
+      ]);
+      setIsInitialLoading(false);
+    },
+    [fetchYouTubeVideos]
+  );
+
   const handleNavbarSearch = (query: string) => {
     setSearchTerm(query);
-    // fetchCoinNews();
-    // fetchNews(query);
-    fetchYouTubeVideos(query);
-    fetchRedditNews(null, query);
-    fetchRSSFeeds(); // Keep RSS feeds as they are crypto-specific already
+    fetchAllNews(query);
   };
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
-      // fetchNews(searchTerm.trim());
-
-      fetchYouTubeVideos(searchTerm.trim());
-      fetchRedditNews(null, searchTerm.trim());
-      // fetchTwitterPosts("elonmusk"); // Keep showing Elon's tweets regardless of search
+      fetchAllNews(searchTerm.trim());
     }
   };
 
@@ -535,11 +537,8 @@ export default function NewsPage() {
   useEffect(() => {
     const defaultQuery = "cryptocurrency news";
     setSearchTerm(defaultQuery);
-    fetchGNews(defaultQuery);
-    fetchYouTubeVideos(defaultQuery);
-    fetchRedditNews(null, defaultQuery);
-    fetchRSSFeeds();
-  }, [fetchYouTubeVideos]);
+    fetchAllNews(defaultQuery);
+  }, [fetchAllNews]);
 
   const LoadingSkeleton = () => (
     <div className="space-y-8 animate-pulse">
@@ -926,7 +925,14 @@ export default function NewsPage() {
 
         <div className="hidden md:grid p-8 lg:grid-cols-[1fr_400px] gap-12">
           <div>
-            {loading ? (
+            {isInitialLoading ||
+            (gNewsLoading &&
+              rssLoading &&
+              youtubeLoading &&
+              gNews.length === 0 &&
+              rssNews.length === 0 &&
+              redditNews.length === 0 &&
+              youtubeVideos.length === 0) ? (
               <LoadingSkeleton />
             ) : error ? (
               <div className="bg-red-900/20 border border-red-800 p-4 rounded-xl">
@@ -934,7 +940,8 @@ export default function NewsPage() {
               </div>
             ) : (
               <>
-                {redditNews.length === 0 &&
+                {gNews.length === 0 &&
+                redditNews.length === 0 &&
                 youtubeVideos.length === 0 &&
                 rssNews.length === 0 ? (
                   <div className="text-center py-10">

@@ -165,6 +165,7 @@ const getFilteredNews = (news: any[], category: string) => {
 };
 
 export default function DiscoverView() {
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -243,7 +244,6 @@ export default function DiscoverView() {
       setGNewsError(
         err instanceof Error ? err.message : "An unknown error occurred"
       );
-      setGNews([]);
     } finally {
       setGNewsLoading(false);
     }
@@ -271,40 +271,25 @@ export default function DiscoverView() {
   };
 
   const fetchRedditNews = async (
-    afterToken: string | null = null,
+    _afterToken: string | null = null,
     query: string = "cryptocurrency"
   ) => {
     try {
       const redditResponse = await fetch(
-        `/api/reddit?query=${encodeURIComponent(query)}${
-          afterToken ? `&after=${encodeURIComponent(afterToken)}` : ""
-        }`
+        `/api/reddit?query=${encodeURIComponent(query)}`
       );
       if (!redditResponse.ok) {
-        setRedditNews([]);
         return;
       }
       const redditData = await redditResponse.json();
-      if (!redditData?.data?.children || !Array.isArray(redditData.data.children)) {
-        setRedditNews([]);
+      if (redditData?.articles && Array.isArray(redditData.articles)) {
+        setRedditNews(redditData.articles);
+        setNextRedditPageToken(null);
+        setPrevRedditPageToken(null);
         return;
       }
-      const redditArticles = redditData.data.children.map((child: any) => ({
-        title: child.data.title,
-        url: `https://www.reddit.com${child.data.permalink}`,
-        urlToImage:
-          child.data.thumbnail && child.data.thumbnail.startsWith("http")
-            ? child.data.thumbnail
-            : DEFAULT_FALLBACK_IMAGE,
-        source: { name: "Reddit" },
-        publishedAt: new Date(child.data.created_utc * 1000).toISOString(),
-      }));
-      setRedditNews(redditArticles);
-      setNextRedditPageToken(redditData.data.after || null);
-      setPrevRedditPageToken(redditData.data.before || null);
     } catch (err) {
-      console.error("Reddit fetch error:", err);
-      setRedditNews([]);
+      console.error("Reddit news fetch error:", err);
     }
   };
 
@@ -661,15 +646,24 @@ export default function DiscoverView() {
   //   // fetchCoinNews(); // Fetch news based on the keyword
   // }, []); // Fetch once on component mount
 
+  const fetchAllNews = useCallback(
+    async (query: string = "cryptocurrency news") => {
+      await Promise.allSettled([
+        fetchGNews(query),
+        fetchYouTubeVideos(query),
+        fetchRedditNews(null, query),
+        fetchRSSFeeds(),
+      ]);
+      setIsInitialLoading(false);
+    },
+    [fetchYouTubeVideos]
+  );
+
   useEffect(() => {
     const defaultQuery = "cryptocurrency news";
     setSearchTerm(defaultQuery);
-    fetchGNews(defaultQuery);
-    // fetchNews(defaultQuery);
-    fetchYouTubeVideos(defaultQuery);
-    fetchRedditNews(null, defaultQuery);
-    fetchRSSFeeds();
-  }, [fetchYouTubeVideos]);
+    fetchAllNews(defaultQuery);
+  }, [fetchAllNews]);
 
   function getImageSrc(url: string | undefined) {
     return normalizeImageUrl(url);
@@ -793,71 +787,91 @@ export default function DiscoverView() {
 
       {/* Combined News Feed */}
       <div className="px-4 space-y-4 pb-8">
-        {getFilteredNews(allNews, activeCategory).map((item, index) => (
-          <Link
-            key={index}
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block"
-          >
-            <Card className="flex gap-4 rounded-xl  bg-[#1A1625] border-none overflow-hidden hover:bg-[#231d30] transition-colors">
-              <div className="relative w-24 h-24 flex-shrink-0">
-                <NewsImage
-                  src={item.urlToImage}
-                  alt={item.title}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex-1 p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge
-                    variant="outline"
-                    className={`
-                    ${
-                      item.type === "youtube"
-                        ? "text-red-500 border-red-500/30 bg-red-500/5"
-                        : ""
-                    }
-                    ${
-                      item.type === "reddit"
-                        ? "text-orange-500 border-orange-500/30 bg-orange-500/5"
-                        : ""
-                    }
-                    ${
-                      item.type === "rss"
-                        ? "text-blue-500 border-blue-500/30 bg-blue-500/5"
-                        : ""
-                    }
-                    ${
-                      item.type === "gnews"
-                        ? "text-purple-500 border-purple-500/30 bg-purple-500/5"
-                        : ""
-                    }
-                  `}
-                  >
-                    {item.source.name}
-                  </Badge>
-                </div>
-                <h3 className="text-sm font-medium line-clamp-2 mb-2 text-gray-100">
-                  {item.title}
-                </h3>
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Avatar className="w-4 h-4">
-                    <AvatarImage
-                      src={item.source.icon || DEFAULT_FALLBACK_IMAGE}
-                    />
-                    <AvatarFallback>{item.source.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <span>{item.source.name}</span>
-                  <span>•</span>
-                  <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+        {isInitialLoading || (gNewsLoading && rssLoading && allNews.length === 0) ? (
+          <div className="space-y-4 animate-pulse">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex gap-4 rounded-xl bg-[#1A1625] p-3 h-24">
+                <div className="w-24 h-24 bg-gray-800 rounded-lg" />
+                <div className="flex-1 space-y-2 py-2">
+                  <div className="h-4 bg-gray-800 rounded w-1/4" />
+                  <div className="h-4 bg-gray-800 rounded w-3/4" />
                 </div>
               </div>
-            </Card>
-          </Link>
-        ))}
+            ))}
+          </div>
+        ) : allNews.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-xl text-gray-400">
+              No news available. Please try refreshing the page.
+            </p>
+          </div>
+        ) : (
+          getFilteredNews(allNews, activeCategory).map((item, index) => (
+            <Link
+              key={index}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Card className="flex gap-4 rounded-xl  bg-[#1A1625] border-none overflow-hidden hover:bg-[#231d30] transition-colors">
+                <div className="relative w-24 h-24 flex-shrink-0">
+                  <NewsImage
+                    src={item.urlToImage}
+                    alt={item.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="flex-1 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge
+                      variant="outline"
+                      className={`
+                      ${
+                        item.type === "youtube"
+                          ? "text-red-500 border-red-500/30 bg-red-500/5"
+                          : ""
+                      }
+                      ${
+                        item.type === "reddit"
+                          ? "text-orange-500 border-orange-500/30 bg-orange-500/5"
+                          : ""
+                      }
+                      ${
+                        item.type === "rss"
+                          ? "text-blue-500 border-blue-500/30 bg-blue-500/5"
+                          : ""
+                      }
+                      ${
+                        item.type === "gnews"
+                          ? "text-purple-500 border-purple-500/30 bg-purple-500/5"
+                          : ""
+                      }
+                    `}
+                    >
+                      {item.source.name}
+                    </Badge>
+                  </div>
+                  <h3 className="text-sm font-medium line-clamp-2 mb-2 text-gray-100">
+                    {item.title}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <Avatar className="w-4 h-4">
+                      <AvatarImage
+                        src={item.source.icon || DEFAULT_FALLBACK_IMAGE}
+                      />
+                      <AvatarFallback>{item.source.name[0]}</AvatarFallback>
+                    </Avatar>
+                    <span>{item.source.name}</span>
+                    <span>•</span>
+                    <span>{new Date(item.publishedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          ))
+        )}
       </div>
       <MobileMenu
         isOpen={mobileMenuOpen}
