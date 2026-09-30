@@ -7,13 +7,21 @@
 # Step 1 — Ignore everything at the repo root
 /*
 
-# Step 2 — Always keep .gitignore itself
+# Step 2 — Keep gitignore and essential Vercel build configs
 !.gitignore
+!package.json
+!package-lock.json
+!tsconfig.json
 !next.config.js
+!tailwind.config.ts
+!postcss.config.js
+!components.json
+!README.md
 
-# Step 3 — Un-ignore only these directories
+# Step 3 — Un-ignore application directories
 !/app
 !/components
 !/hooks
 !/lib
 !/public
+
