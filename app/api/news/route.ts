@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCachedNews, setCachedNews } from '@/lib/cache';
+import { normalizeImageUrl } from '@/lib/imageUtils';
 
 interface Article {
   title: string;
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
             title: item.title,
             description: item.description || '',
             url: item.link,
-            urlToImage: item.image_url || undefined,
+            urlToImage: normalizeImageUrl(item.image_url),
             source: { name: item.source_name || item.source_id || 'NewsData' },
             publishedAt: item.pubDate || new Date().toISOString(),
           }));
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
             title: item.title,
             description: item.description || '',
             url: item.url,
-            urlToImage: item.image || undefined,
+            urlToImage: normalizeImageUrl(item.image),
             source: { name: item.source?.name || 'GNews' },
             publishedAt: item.publishedAt || new Date().toISOString(),
           }));
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
           title: item.title || 'Crypto News',
           description: item.description?.replace(/<[^>]*>?/gm, '').slice(0, 200) || '',
           url: item.link || '#',
-          urlToImage: item.thumbnail || item.enclosure?.link || undefined,
+          urlToImage: normalizeImageUrl(item.thumbnail || item.enclosure?.link),
           source: {
             name: feed.feed?.title || 'Crypto RSS',
             icon: feed.feed?.favicon || undefined,

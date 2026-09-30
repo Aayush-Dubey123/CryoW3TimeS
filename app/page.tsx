@@ -20,6 +20,8 @@ import {
   TimeIcon,
 } from "@/components/ui/icons";
 import Image from "next/image";
+import NewsImage from "@/components/NewsImage";
+import { DEFAULT_FALLBACK_IMAGE, normalizeImageUrl } from "@/lib/imageUtils";
 import Link from "next/link";
 import { useEffect, useCallback, useState } from "react";
 import { Bell, BellIcon, Menu, X, ChevronUp, Search } from "lucide-react";
@@ -113,8 +115,7 @@ interface TwitterPost {
   created_at: string;
 }
 
-const DEFAULT_FALLBACK_IMAGE =
-  "https://cdn-icons-png.flaticon.com/512/4588/4588164.png";
+// Use centralized local fallback image
 
 // Add new animation keyframes
 const gradientAnimation = {
@@ -198,10 +199,7 @@ export default function NewsPage() {
   const router = useRouter();
 
   function getImageSrc(url: string | undefined) {
-    if (!url || url === "self" || url === "default") {
-      return DEFAULT_FALLBACK_IMAGE;
-    }
-    return url;
+    return normalizeImageUrl(url);
   }
 
   const fetchGNews = async (query: string = "cryptocurrency") => {
@@ -848,8 +846,8 @@ export default function NewsPage() {
                     className="snap-center w-[85vw] flex-shrink-0"
                   >
                     <div className="relative h-48 rounded-xl overflow-hidden">
-                      <Image
-                        src={getImageSrc(article.urlToImage)}
+                      <NewsImage
+                        src={article.urlToImage}
                         alt={article.title}
                         fill
                         className="object-cover"
@@ -894,8 +892,8 @@ export default function NewsPage() {
                 className="flex gap-4 items-center p-2 rounded-xl bg-gray-900/50"
               >
                 <div className="relative w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image
-                    src={getImageSrc(article.urlToImage || DEFAULT_FALLBACK_IMAGE)}
+                  <NewsImage
+                    src={article.urlToImage}
                     alt={article.title}
                     fill
                     className="object-cover"
@@ -995,8 +993,8 @@ export default function NewsPage() {
                           <div className="relative">
                             <div className="absolute inset-0 bg-gradient-to-br from-[#8B5CF6]/20 to-[#8B5CF6]/20 rounded-3xl" />
                             <div className="relative w-full h-[300px] rounded-3xl overflow-hidden">
-                              <Image
-                                src={getImageSrc(rssNews[0].urlToImage || DEFAULT_FALLBACK_IMAGE)}
+                              <NewsImage
+                                src={rssNews[0].urlToImage}
                                 alt={rssNews[0].title}
                                 fill
                                 className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -1063,12 +1061,11 @@ export default function NewsPage() {
                             >
                               <div className="relative rounded-2xl hover:rounded-2xl hover:border-purple-500">
                                 <div className="relative w-full h-48 rounded-t-2xl overflow-hidden">
-                                  <Image
+                                  <NewsImage
                                     src={video.snippet.thumbnails.medium.url}
                                     alt={video.snippet.title}
                                     fill
                                     className="object-cover"
-                                    unoptimized
                                   />
                                 </div>
                                 <div className="p-4 space-y-2">
@@ -1151,11 +1148,8 @@ export default function NewsPage() {
                               >
                                 <Card className="bg-[#0A0B0F]/60 backdrop-blur-xl border-white/10 rounded-xl hover:rounded-2xl hover:border-[#8B5CF6]/50 hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
                                   <div className="relative h-48 rounded-t-xl overflow-hidden">
-                                    <Image
-                                      src={
-                                        article.urlToImage ||
-                                        DEFAULT_FALLBACK_IMAGE
-                                      }
+                                    <NewsImage
+                                      src={article.urlToImage}
                                       alt={article.title}
                                       fill
                                       className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -1175,11 +1169,12 @@ export default function NewsPage() {
                                     <div className="flex items-center gap-4 text-sm text-gray-400">
                                       <div className="flex items-center gap-2">
                                         <Avatar className="h-6 w-6 border-2 border-purple-500/30">
-                                          <Image
-                                            src={getImageSrc(article.source.icon || DEFAULT_FALLBACK_IMAGE)}
+                                          <NewsImage
+                                            src={article.source.icon}
                                             alt="Source"
                                             width={24}
                                             height={24}
+                                            fallbackSrc="/cry_ic.png"
                                           />
                                         </Avatar>
                                         <span className="font-small">
@@ -1238,11 +1233,8 @@ export default function NewsPage() {
                           >
                             <div className="relative  rounded-2xl hover:rounded-2xl hover:border-purple-500">
                               <div className="w-full h-48 relative">
-                                <Image
-                                  src={getImageSrc(article.urlToImage &&
-                                    article.urlToImage.startsWith("http")
-                                      ? article.urlToImage
-                                      : DEFAULT_FALLBACK_IMAGE)}
+                                <NewsImage
+                                  src={article.urlToImage}
                                   alt={article.title}
                                   fill
                                   className="rounded-t-2xl object-cover"
@@ -1291,10 +1283,8 @@ export default function NewsPage() {
                           >
                             <Card className="bg-[#0A0B0F]/60 backdrop-blur-xl border-white/10 rounded-xl hover:rounded-2xl hover:border-[#8B5CF6]/50 hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
                               <div className="relative h-48 rounded-t-xl overflow-hidden">
-                                <Image
-                                  src={
-                                    article.urlToImage || DEFAULT_FALLBACK_IMAGE
-                                  }
+                                <NewsImage
+                                  src={article.urlToImage}
                                   alt={article.title}
                                   fill
                                   className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -1311,14 +1301,12 @@ export default function NewsPage() {
                                 <div className="flex items-center gap-4 text-sm text-gray-400">
                                   <div className="flex items-center gap-2">
                                     <Avatar className="h-6 w-6 border-2 border-purple-500/30">
-                                      <Image
-                                        src={
-                                          article.source.icon ||
-                                          DEFAULT_FALLBACK_IMAGE
-                                        }
+                                      <NewsImage
+                                        src={article.source.icon}
                                         alt="Source"
                                         width={24}
                                         height={24}
+                                        fallbackSrc="/cry_ic.png"
                                       />
                                     </Avatar>
                                   </div>
@@ -1426,8 +1414,8 @@ export default function NewsPage() {
                   <Card className="flex gap-5 flex-col bg-[#0A0B0F]/60 backdrop-blur-xl border-white/10 rounded-xl hover:rounded-[50px] hover:border-[#8B5CF6]/50 rounded-[50px] hover:bg-[#2A2438] transition-all duration-300 hover:shadow-xl hover:shadow-[#8B5CF6]/10 transform hover:-translate-y-1">
                     <div className="relative flex w-full h-[300px]">
                       {/* Image */}
-                      <Image
-                        src={getImageSrc(article.urlToImage || DEFAULT_FALLBACK_IMAGE)}
+                      <NewsImage
+                        src={article.urlToImage}
                         alt={article.title}
                         fill
                         className="rounded-[50px] object-cover"
@@ -1474,15 +1462,8 @@ export default function NewsPage() {
                 >
                   <Card className="flex gap-5 bg-[#0A0B0F]/60 backdrop-blur-xl border-white/10 rounded-xl hover:rounded-2xl hover:border-[#8B5CF6]/50 transition-all duration-300">
                     <div className="relative w-[100px] h-[100px]">
-                      <Image
-                        src={getImageSrc(article.urlToImage &&
-                          (article.urlToImage.startsWith("http") ||
-                            article.urlToImage.startsWith("/") ||
-                            article.urlToImage === "self")
-                            ? article.urlToImage === "self"
-                              ? DEFAULT_FALLBACK_IMAGE
-                              : article.urlToImage
-                            : DEFAULT_FALLBACK_IMAGE)}
+                      <NewsImage
+                        src={article.urlToImage}
                         alt={article.title || "News Article"}
                         fill
                         className="rounded-xl object-cover"

@@ -9,8 +9,9 @@
 
 # Step 2 — Always keep .gitignore itself
 !.gitignore
+!next.config.js
 
-# Step 3 — Un-ignore only these five directories
+# Step 3 — Un-ignore only these directories
 !/app
 !/components
 !/hooks

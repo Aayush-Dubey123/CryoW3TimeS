@@ -21,6 +21,8 @@ import {
   TimeIcon,
 } from "@/components/ui/icons";
 import Image from "next/image";
+import NewsImage from "@/components/NewsImage";
+import { DEFAULT_FALLBACK_IMAGE, normalizeImageUrl } from "@/lib/imageUtils";
 import Link from "next/link";
 import { useEffect, useCallback, useState } from "react";
 import { Bell, BellIcon, Menu, X, ChevronUp } from "lucide-react";
@@ -72,11 +74,7 @@ interface YouTubeVideo {
 }
 
 const getValidImageUrl = (url: string | undefined): string => {
-  if (!url) return DEFAULT_FALLBACK_IMAGE;
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url === "self" || url === "default") return DEFAULT_FALLBACK_IMAGE;
-  if (url.startsWith("/")) return url;
-  return DEFAULT_FALLBACK_IMAGE;
+  return normalizeImageUrl(url);
 };
 
 // Add the styles to your Tailwind config if not already present
@@ -120,8 +118,7 @@ interface TwitterPost {
   created_at: string;
 }
 
-const DEFAULT_FALLBACK_IMAGE =
-  "https://cdn-icons-png.flaticon.com/512/4588/4588164.png";
+// Use centralized local fallback image
 
 // Add new animation keyframes
 const gradientAnimation = {
@@ -675,10 +672,7 @@ export default function DiscoverView() {
   }, [fetchYouTubeVideos]);
 
   function getImageSrc(url: string | undefined) {
-    if (!url || url === "self" || url === "default") {
-      return DEFAULT_FALLBACK_IMAGE;
-    }
-    return url;
+    return normalizeImageUrl(url);
   }
 
   return (
@@ -809,8 +803,8 @@ export default function DiscoverView() {
           >
             <Card className="flex gap-4 rounded-xl  bg-[#1A1625] border-none overflow-hidden hover:bg-[#231d30] transition-colors">
               <div className="relative w-24 h-24 flex-shrink-0">
-                <Image
-                  src={getImageSrc(item.urlToImage)}
+                <NewsImage
+                  src={item.urlToImage}
                   alt={item.title}
                   fill
                   className="object-cover"

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { DEFAULT_FALLBACK_IMAGE, normalizeImageUrl } from '@/lib/imageUtils';
 
 /**
  * Reddit Community Feed — Direct RSS/Atom parsing (no API key required)
@@ -12,9 +13,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const REDDIT_USER_AGENT =
   'CryoW3Times:news-aggregator:v1.0 (by /u/cryow3times_bot)';
-
-const DEFAULT_FALLBACK_IMAGE =
-  'https://cdn-icons-png.flaticon.com/512/4588/4588164.png';
 
 const SUBREDDIT_FEEDS: { sub: string; url: string }[] = [
   { sub: 'CryptoCurrency', url: 'https://www.reddit.com/r/CryptoCurrency/hot/.rss?limit=10' },
@@ -69,16 +67,27 @@ function parseAtomEntries(xml: string, subreddit: string): RedditArticle[] {
       extractText(entry, 'published') ??
       new Date().toISOString();
 
-    const imgUrl =
-      extractAttr(entry, 'media:thumbnail', 'url') ??
-      extractAttr(entry, 'media:content', 'url') ??
-      null;
-
     // Skip stickied/removed posts (typically link to /about/rules etc.)
     if (!title || !link || link.includes('/about/')) return [];
 
-    // Strip HTML from description/content
+    // Extract image from media tags or HTML content
     const rawContent = extractText(entry, 'content') ?? '';
+    let rawImg =
+      extractAttr(entry, 'media:thumbnail', 'url') ??
+      extractAttr(entry, 'media:content', 'url');
+
+    if (!rawImg && rawContent) {
+      const imgMatch =
+        rawContent.match(/&lt;img[^&]+src=&quot;([^&"]+)&quot;/i) ||
+        rawContent.match(/<img[^>]+src="([^"]+)"/i);
+      if (imgMatch?.[1]) {
+        rawImg = imgMatch[1];
+      }
+    }
+
+    const imgUrl = normalizeImageUrl(rawImg);
+
+    // Strip HTML from description/content
     const description = rawContent
       .replace(/<[^>]*>?/gm, '')
       .replace(/\s+/g, ' ')
@@ -90,7 +99,7 @@ function parseAtomEntries(xml: string, subreddit: string): RedditArticle[] {
         title,
         description,
         url: link,
-        urlToImage: imgUrl ?? DEFAULT_FALLBACK_IMAGE,
+        urlToImage: imgUrl,
         source: { name: `r/${subreddit}` },
         publishedAt: published,
       },
